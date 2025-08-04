@@ -24,6 +24,7 @@
     a {
       color: #90ee90;
       text-decoration: none;
+      cursor: pointer;
     }
     a:hover {
       text-decoration: underline;
@@ -39,8 +40,8 @@
 </head>
 <body>
   <h1>Cisco ISE Files</h1>
-  <ul id="fileList"></ul>
-  <iframe id="pdfViewer" src=""></iframe>
+  <ul id="fileList">Loading file list...</ul>
+  <iframe id="pdfViewer" src="" title="PDF Preview"></iframe>
 
   <script>
     fetch('files.json')
@@ -52,13 +53,13 @@
       })
       .then(files => {
         const fileList = document.getElementById('fileList');
+        fileList.innerHTML = ''; // clear loading message
         files.forEach(file => {
           const li = document.createElement('li');
           const a = document.createElement('a');
-          a.href = "#";
           a.textContent = file;
           a.onclick = function () {
-            document.getElementById('pdfViewer').src = file;
+            document.getElementById('pdfViewer').src = encodeURIComponent(file);
             return false;
           };
           li.appendChild(a);
