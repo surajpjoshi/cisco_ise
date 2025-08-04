@@ -19,34 +19,43 @@
     .sidebar {
       width: 25%;
       background-color: #222;
-      padding: 20px;
-      box-sizing: border-box;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
       border-right: 1px solid #444;
     }
 
-    .sidebar h1 {
+    .header {
+      padding: 20px;
+      box-sizing: border-box;
+      border-bottom: 1px solid #444;
+    }
+
+    .header h1 {
       color: #00bfff;
       font-size: 20px;
-      margin-top: 0;
+      margin: 0 0 10px;
     }
 
     .notes {
-      margin-bottom: 20px;
-    }
-
-    .notes h2 {
-      margin: 0 0 5px;
+      margin-bottom: 10px;
     }
 
     .notes textarea {
       width: 100%;
-      height: 150px;
+      height: 120px;
       padding: 10px;
       background-color: #111;
       color: #fff;
       border: 1px solid #555;
       resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .file-list {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
     }
 
     ul {
@@ -86,14 +95,15 @@
 <body>
   <div class="container">
     <div class="sidebar">
-      <h1>Cisco ISE Files</h1>
-
-      <div class="notes">
-        <h2>Your Notes</h2>
-        <textarea id="notes" placeholder="Write your notes here..."></textarea>
+      <div class="header">
+        <h1>Cisco ISE Files</h1>
+        <div class="notes">
+          <textarea id="notes" placeholder="Write your notes here..."></textarea>
+        </div>
       </div>
-
-      <ul id="fileList"></ul>
+      <div class="file-list">
+        <ul id="fileList"></ul>
+      </div>
     </div>
 
     <div class="pdf-viewer">
