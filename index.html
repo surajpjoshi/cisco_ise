@@ -4,39 +4,49 @@
   <meta charset="UTF-8">
   <title>Cisco ISE Files</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: Arial, sans-serif;
       background-color: #111;
       color: #fff;
       margin: 0;
-      padding: 20px;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     h1 {
       color: #00bfff;
+      padding: 20px;
+      margin: 0;
     }
 
-    .container {
+    .main {
       display: flex;
-      gap: 20px;
-      margin-top: 20px;
+      flex: 1;
+      overflow: hidden;
     }
 
     #fileList {
       width: 30%;
-      list-style-type: none;
-      padding: 0;
+      list-style: none;
       margin: 0;
+      padding: 20px;
+      background-color: #222;
+      overflow-y: auto;
     }
 
     #fileList li {
-      margin: 10px 0;
+      margin-bottom: 10px;
     }
 
     #fileList a {
       color: #90ee90;
       text-decoration: none;
-      font-size: 16px;
+      display: block;
     }
 
     #fileList a:hover {
@@ -44,17 +54,15 @@
     }
 
     #pdfViewer {
-      width: 70%;
-      height: 85vh;
-      border: 2px solid #555;
+      flex: 1;
+      border: none;
       background: #fff;
     }
   </style>
 </head>
 <body>
   <h1>Cisco ISE Files</h1>
-
-  <div class="container">
+  <div class="main">
     <ul id="fileList">Loading files...</ul>
     <iframe id="pdfViewer" src=""></iframe>
   </div>
@@ -70,7 +78,7 @@
       .then(files => {
         const fileList = document.getElementById('fileList');
         const viewer = document.getElementById('pdfViewer');
-        fileList.innerHTML = ''; // clear loading message
+        fileList.innerHTML = '';
 
         files.forEach(file => {
           const li = document.createElement('li');
