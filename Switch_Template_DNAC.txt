@@ -1,0 +1,724 @@
+{% include "Golden Configuration - Dev/Global Configuration" %}
+
+{% include "Golden Configuration - Dev/DhcpSnooping" %}
+
+{% include "Golden Configuration - Dev/VTP" %}
+
+{% include "Golden Configuration - Dev/Domain" %}
+
+{% include "Golden Configuration - Dev/TacacsAndRadius" %}
+
+{% include "Golden Configuration - Dev/Vlan" %}
+
+{% include "Golden Configuration - Dev/Interface" %}
+
+{% include "Golden Configuration - Dev/SSH Hardening" %}
+
+{% include "Golden Configuration - Dev/Logging" %}
+
+{% include "Golden Configuration - Dev/SNMP" %}
+
+{% include "Golden Configuration - Dev/NTP" %}
+
+{% include "Golden Configuration - Dev/Banner" %}
+
+{% include "Golden Configuration - Dev/SpanningTree" %}
+
+{% include "Golden Configuration - Dev/VTY" %}
+
+{% include "Golden Configuration - Dev/Dot1x ClassAndPolicy" %}
+
+{% include "Golden Configuration - Dev/Dot1x Interface ClosedMode" %}
+
+
+
+
+====================================================================================
+
+
+!! Global Configuration Template !!
+
+No service pad
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+service unsupported-transceiver
+no platform punt-keepalive disable-kernel-core
+exit
+terminal width 380
+configure terminal
+
+key config-key password-encrypt {{ config_secret }}
+password encryption aes
+enable secret {{ enable_secret }}
+username ipcadmin secret {{ admin_secret }}
+username svc_dnac secret {{ svc_dnac_secret }}
+
+no ip http server
+no ip http secure-server
+
+
+no errdisable detect cause gbic-invalid
+no errdisable recovery cause all
+errdisable recovery cause bpduguard
+errdisable recovery interval 180
+
+netconf-yang
+
+pnp startup-vlan {{ mgmt_vlan }}
+
+
+
+====================================================================================
+
+
+
+!! DhcpSnooping Template !!
+
+ip dhcp snooping
+ip dhcp snooping vlan 2-4094
+
+
+
+====================================================================================
+
+
+!! VTP Template !!
+vtp mode off
+
+
+====================================================================================
+
+
+!! Domain Template !!
+
+ip domain lookup
+ip name-server {{  __dnsserver[0].primaryIpAddress  }} {{  __dnsserver[0].secondaryIpAddress  }}
+ip domain name {{ __dnsserver[0].domainName }}
+ip domain lookup source-interface vlan{{  mgmt_vlan  }}
+
+
+====================================================================================
+
+
+!! TacacsAndRadius Template
+{% if IBNS_2 %}
+#INTERACTIVE
+authentication convert-to new-style<IQ>yes<R>yes
+#ENDS_INTERACTIVE
+{% endif %}
+
+{% if convert_old_configuration %}
+no aaa authentication login dnac-cts-list group 8021x-RADIUS local
+no aaa authentication login VTY_authen group dnac-network-tacacs-group local
+no aaa authentication enable default enable group tacacs+
+no aaa authentication dot1x default group 8021x-RADIUS
+no aaa authorization exec default local
+no aaa authorization exec VTY_author group dnac-network-tacacs-group local if-authenticated
+no aaa authorization network default group 8021x-RADIUS
+no aaa authorization network dnac-cts-list group 8021x-RADIUS
+no aaa accounting exec default start-stop group dnac-network-tacacs-group
+no aaa accounting Identity default start-stop group 8021x-RADIUS
+no aaa accounting update newinfo periodic 2880
+
+no aaa server radius dynamic-author
+
+no radius server nl-int-ise-vip
+
+no radius-server attribute 6 on-for-login-auth
+no radius-server attribute 8 include-in-access-req
+no radius-server attribute 25 access-request include
+no radius-server attribute 31 mac format ietf upper-case
+no radius-server attribute 31 send nas-port-detail mac-only
+no radius-server dead-criteria time 10 tries 10
+no radius-server deadtime 3
+
+no tacacs server dnac-tacacs_10.244.2.163
+
+no tacacs-server directed-request
+
+no aaa group server radius 8021x-RADIUS
+
+no aaa group server tacacs+ dnac-network-tacacs-group
+
+
+{% endif %}
+
+ip access-list extended ACL_WEBAUTH_REDIRECT
+ 120 deny ip any host 10.244.2.163
+ 500 permit tcp any any eq www
+ 600 permit tcp any any eq 443
+ 700 permit tcp any any eq 8443
+ 800 deny udp any any eq domain
+ 900 deny udp any eq bootpc any eq bootps
+ exit
+
+aaa new-model
+ip http server
+ip http max-connections 16
+ip http secure-server
+
+tacacs server dnac-tacacs_10.242.2.163
+ address ipv4 10.244.2.163
+ key {{ tacac_key }}
+ timeout 4
+ exit
+
+aaa group server tacacs+ dnac-network-tacacs-group
+ server name dnac-tacacs_10.242.2.163
+ exit
+
+
+{% if region == "AMERICAS" %}
+! Using Radius configuration for America
+
+radius server dnac-radius_10.242.2.163
+ address ipv4 10.242.2.163 auth-port 1812 acct-port 1813
+ pac key {{ radius_key }}
+ retransmit 3
+ timeout 4
+ automate-tester username dummy ignore-acct-port probe-on
+ exit
+
+aaa group server radius dnac-client-radius-group
+ server name dnac-radius_10.242.2.163
+ ip radius source-interface vlan{{  mgmt_vlan  }}
+ exit
+
+{% elif region == "EMEA" %}
+! Using Radius configuration for EMEA
+
+radius server dnac-radius_10.244.2.163
+ address ipv4 10.244.2.163 auth-port 1812 acct-port 1813
+ pac key {{ radius_key }}
+ retransmit 3
+ timeout 4
+ automate-tester username dummy ignore-acct-port probe-on
+ exit
+
+aaa group server radius dnac-client-radius-group
+ server name dnac-radius_10.244.2.163
+ ip radius source-interface vlan{{  mgmt_vlan  }}
+ exit
+ 
+{% elif region == "APAC" %}
+! Using Radius configuration for APAC
+
+radius server dnac-radius_10.247.2.163
+ address ipv4 10.247.2.163 auth-port 1812 acct-port 1813
+ pac key {{ radius_key }}
+ retransmit 3
+ timeout 4
+ automate-tester username dummy ignore-acct-port probe-on
+ exit
+
+aaa group server radius dnac-client-radius-group
+ server name dnac-radius_10.247.2.163
+ ip radius source-interface vlan{{  mgmt_vlan  }}
+ exit
+
+{% endif %}
+
+aaa server radius dynamic-author
+client 10.244.2.163 server-key {{ radius_key }}
+client 10.244.2.156 server-key {{ radius_key }}
+client 10.244.2.157 server-key {{ radius_key }}
+
+ip tacacs source-interface vlan{{  mgmt_vlan  }}
+ip radius source-interface vlan{{  mgmt_vlan  }}
+
+aaa accounting identity default start-stop group dnac-client-radius-group
+aaa accounting update newinfo periodic 2880
+aaa accounting exec default start-stop group dnac-network-tacacs-group
+aaa authorization exec default local
+aaa authorization network default group dnac-client-radius-group
+aaa authorization network dnac-cts-list group dnac-client-radius-group
+aaa authorization exec VTY_author group dnac-network-tacacs-group local if-authenticated
+aaa authentication login default local
+aaa authentication dot1x default group dnac-client-radius-group
+aaa authentication login dnac-cts-list group dnac-client-radius-group local
+aaa authentication login VTY_authen group dnac-network-tacacs-group local
+
+aaa session-id common
+dot1x system-auth-control
+
+
+radius-server vsa send authentication
+radius-server vsa send accounting
+radius-server dead-criteria time 5 tries 3
+radius-server deadtime 3
+radius-server attribute 31 send nas-port-detail mac-only
+radius-server attribute 31 mac format ietf upper-case
+radius-server attribute 25 access-request include
+radius-server attribute 8 include-in-access-req
+radius-server attribute 6 on-for-login-auth
+radius-server attribute 6 support-multiple
+
+cts authorization list dnac-cts-list
+
+line vty 0 15
+login authentication VTY_authen
+authorization exec VTY_author
+
+
+
+====================================================================================
+
+!! Vlan Template !!
+!! Empty !!
+
+
+
+
+====================================================================================
+
+
+!! Interface Template !!
+!! {{ client_vlanid }} {{ InfraPort }} {{ DhcpServerPort }}
+
+interface Vlan1
+description not-in-use
+no ip address
+shutdown
+
+{% for interface in  __interface  %}
+{%if interface.portName == 'GigabitEthernet0/0' %}
+interface {{ interface.portName }}
+description not-in-use
+no ip address
+shutdown
+{% endif %}
+{% if interface.interfaceType == 'Physical' or 'Port-channel' in interface.portName%}
+interface {{ interface.portName }}
+{% if interface.description and interface.portName != 'GigabitEthernet0/0' %}
+description {{ interface.description|replace ("*", "")| lower }}
+{% endif %}
+{% if interface.portMode == 'access' %}
+switchport access vlan {{ interface.vlanId }}
+switchport mode access
+switchport port-security maximum 8
+switchport port-security violation restrict
+switchport port-security aging time 10
+switchport port-security aging type inactivity
+switchport port-security
+switchport nonegotiate
+storm-control broadcast level 10.00 5.00
+storm-control multicast level 10.00 5.00
+ip dhcp snooping limit rate 15
+spanning-tree guard root
+!! power inline port poe-ha Removed because we could not hanlde modules in a good way, ex te1/1/1
+
+{% elif interface.portMode == 'dynamic_auto'  %}
+switchport access vlan {{ client_vlanid }}
+description access;client;vlan{{ client_vlanid }}
+switchport mode access
+switchport port-security maximum 8
+switchport port-security violation restrict
+switchport port-security aging time 10
+switchport port-security aging type inactivity
+switchport port-security
+switchport nonegotiate
+storm-control broadcast level 10.00 5.00
+storm-control multicast level 10.00 5.00
+ip dhcp snooping limit rate 15
+spanning-tree guard root
+!! power inline port poe-ha Removed because we could not hanlde modules in a good way, ex te1/1/1
+{% elif interface.portMode  == 'trunk' %}
+switchport mode trunk
+switchport nonegotiate
+
+{% if 'TenGigabitEthernet' in interface.portName%}
+bandwidth 10000000
+{% elif 'GigabitEthernet' in interface.portName %}
+bandwidth 1000000
+{% endif %}
+
+
+{% if interface.portName in InfraPort %}
+ip dhcp snooping trust
+spanning-tree portfast disable
+spanning-tree bpdufilter disable
+spanning-tree bpduguard disable
+{% endif %}
+{% if interface.portName in DhcpServerPort %}
+ip dhcp snooping trust
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+
+====================================================================================
+
+
+!! SSH Hardening Template !!
+
+ip access-list standard acl-vty
+permit 10.245.223.10
+permit 10.245.223.11
+permit 10.245.241.10
+permit 10.240.0.188
+permit 10.240.0.189
+permit 10.240.29.4
+permit 10.240.29.5
+permit 10.240.136.4
+permit 10.240.136.5
+permit 10.240.165.4
+permit 10.240.165.5
+permit {{ mgmt_network }}
+
+ip access-list standard acl-quiet-mode-access
+permit 10.245.223.10
+permit 10.245.223.11
+permit 10.240.0.188
+permit 10.240.0.189
+
+login block-for 30 attempts 3 within 10
+login delay 1
+login on-success log
+login on-failure log
+login quiet-mode access-class acl-quiet-mode-access
+
+ip ssh source-interface vlan{{ mgmt_vlan }}
+ip ssh version 2
+ip ssh dh min size 4096
+ip ssh server algorithm mac hmac-sha2-256 
+ip ssh server algorithm encryption aes256-ctr
+ip ssh server algorithm kex diffie-hellman-group14-sha1
+ip ssh client algorithm mac hmac-sha2-256
+ip ssh client algorithm encryption aes256-ctr
+ip ssh client algorithm kex diffie-hellman-group14-sha1
+
+ip http authentication aaa
+ip http access-class ipv4 acl-vty
+
+
+====================================================================================
+
+
+!! Logging Template !!
+
+logging history size 500
+logging buffered 1000000
+logging history errors
+logging trap errors
+
+
+logging {{ __syslogserver[0].ipAddresses[0]  }}
+
+
+logging source-interface vlan{{ mgmt_vlan }}
+
+
+====================================================================================
+
+!! SNMP Template !!
+
+ip access-list standard acl-snmp-access
+ permit 10.245.252.22
+ permit 10.245.223.10
+ permit 10.247.2.181
+ permit 10.247.2.180
+ permit 10.242.2.170
+ permit 10.242.2.171
+ permit 10.244.2.169
+ permit 10.244.2.150
+ permit 10.244.2.138
+ permit 10.245.241.10
+ permit 10.244.2.48
+ permit 77.95.150.128 0.0.0.63
+ permit 10.245.208.18
+ no permit 10.244.2.120
+
+snmp-server trap-source vlan{{ mgmt_vlan }}
+
+snmp-server community Molnlycke-RO RO acl-snmp-access
+snmp-server community Molnlycke-RW RW acl-snmp-access
+snmp-server user librenms GroupRead v3 auth sha yya2xx3qhuvv priv aes 128 6qt6jbjrm3bk
+
+====================================================================================
+
+
+
+!! NTP Template !!
+
+no ntp source 
+
+ntp server {{ __ntpserver[0] }} source vlan{{ mgmt_vlan }}
+
+
+====================================================================================
+
+
+!! Banner Template !!
+
+<MLTCMD>banner login ;
+_________________________________________________________________
+
+  Unauthorized access prohibited. All access and activities
+  not explicitly authorized are unauthorized. All activities 
+  are monitored and logged. There is no privacy on this system. 
+  The act of accessing, altering, deleting or retrieving the
+  information contained herein without authorisation constitutes
+  a criminal offence and could result in criminal and
+  civil liability under applicable law. 
+
+Host:  $(hostname).$(domain)
+_________________________________________________________________
+;
+</MLTCMD>
+<MLTCMD>banner motd ;
+                               Authorized
+=============================================================================
+REMEMBER!
+You and only you are responsible for the commands entered in this device!
+Connected to vty$(line) @ $(hostname).$(domain)
+=============================================================================
+;
+</MLTCMD>
+
+
+====================================================================================
+
+
+
+!! SpanningTree Template !!
+
+spanning-tree mode rapid-pvst
+spanning-tree loopguard default
+spanning-tree portfast default
+spanning-tree portfast bpduguard default
+spanning-tree extend system-id
+
+
+{% if root %}
+spanning-tree vlan 1-4094 priority 4096
+
+
+{% endif %}
+
+
+====================================================================================
+
+!! VTY Template !!
+
+line con 0
+timeout login response 300
+exec-timeout 10 0
+logging synchronous
+!
+line vty 0 15
+exec-timeout 20 0
+no password
+access-class acl-vty in
+transport input ssh
+transport output telnet ssh
+logging synchronous
+
+====================================================================================
+
+!! Dot1x ClassAndPolicy Template !!
+
+
+device-tracking policy ipdt_max_10
+ limit address-count 10
+ security-level glean
+ no protocol udp
+ tracking enable
+!
+device-tracking policy disable_ipdt
+    tracking disable
+    trusted-port
+    device-role switch
+
+
+ip access-list extended ACL-ALLOW 
+permit ip any any 
+!
+service-template ST_CRITICAL
+description Add Guest vlan if Radius is down
+vlan {{ guest_vlan_id }}
+
+
+
+class-map type control subscriber match-all AAA_SRV_DOWN_AUTHD_HOST
+ match result-type aaa-timeout
+ match authorization-status authorized
+!
+class-map type control subscriber match-all AAA_SRV_DOWN_UNAUTHD_HOST
+ match result-type aaa-timeout
+ match authorization-status unauthorized
+!
+class-map type control subscriber match-none AAA_SRV_UP_AUTHD_HOST
+ match authorization-status authorized
+!
+class-map type control subscriber match-any AAA_SRV_UP_UNAUTHD_HOST
+{% if convert_old_configuration %}
+no match activated-service-template ST_AAA_DOWN
+{% endif %}
+ match activated-service-template ST_CRITICAL
+!
+class-map type control subscriber match-all DOT1X_FAILED
+ match method dot1x
+ match result-type method dot1x authoritative
+!
+class-map type control subscriber match-all DOT1X_NO_RESP
+ match method dot1x
+ match result-type method dot1x agent-not-found
+!
+class-map type control subscriber match-all DOT1X_TIMEOUT
+ match method dot1x
+ match result-type method dot1x method-timeout
+!
+class-map type control subscriber match-all MAB_FAILED
+ match method mab
+ match result-type method mab authoritative
+ 
+policy-map type control subscriber DOT1X-DEFAULT
+event session-started match-all
+  10 class always do-until-failure
+   10 authenticate using dot1x retries 3 retry-time 7 priority 10
+event authentication-failure match-first
+  10 class AAA_SRV_DOWN_UNAUTHD_HOST do-until-failure
+   10 activate service-template ST_CRITICAL
+   20 authorize
+   30 pause reauthentication
+  20 class AAA_SRV_DOWN_AUTHD_HOST do-until-failure
+   10 authorize
+   20 pause reauthentication
+  30 class DOT1X_FAILED do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 20
+  40 class DOT1X_NO_RESP do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 20
+  50 class DOT1X_TIMEOUT do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 20
+  60 class MAB_FAILED do-until-failure
+   10 terminate mab
+event agent-found match-all
+  10 class always do-until-failure
+   10 terminate mab
+   20 authenticate using dot1x retries 3 retry-time 7 priority 10
+ event authentication-success match-all
+  10 class always do-until-failure
+   10 authorize
+event inactivity-timeout match-all
+  10 class always do-until-failure
+   10 unauthorize
+   20 clear-session
+event aaa-available match-all
+  10 class AAA_SRV_UP_UNAUTHD_HOST do-until-failure
+   10 deactivate service-template ST_CRITICAL
+   20 clear-session
+  20 class AAA_SRV_UP_AUTHD_HOST do-until-failure
+   10 resume reauthentication
+
+====================================================================================
+
+!! Dot1x Interface ClosedMode Template !!
+
+!! {{ InfraPort }} {{ PortChannelMembers }} {{ NoDot1xPort }}
+{% for interface in  __interface  %}
+
+{% if interface.interfaceType == 'Physical' or 'Port-channel' in interface.portName %}
+{% if interface.portMode == 'access' or interface.portMode == 'dynamic_auto'%}
+
+{%if interface.portName is in NoDot1xPort%}
+interface {{ interface.portName }}
+no service-policy type control subscriber
+no authentication periodic
+no authentication timer reauthenticate server
+no mab
+no access-session host-mode multi-auth
+no dot1x pae authenticator
+no dot1x timeout tx-period 10
+no access-session port-control auto
+no device-tracking attach-policy ipdt_max_10
+
+no access-session control-direction in
+no access-session host-mode single-host
+no access-session closed
+no access-session port-control auto
+{% elif interface.portName is not in NoDot1xPort %}
+interface {{ interface.portName }}
+service-policy type control subscriber DOT1X-DEFAULT
+authentication periodic
+authentication timer reauthenticate server
+mab
+access-session host-mode multi-auth
+dot1x pae authenticator
+dot1x timeout tx-period 10
+access-session port-control auto
+device-tracking attach-policy ipdt_max_10
+
+access-session control-direction in
+access-session host-mode single-host
+access-session closed
+access-session port-control auto
+{% endif %}
+
+{% elif interface.portMode  == 'trunk' and interface.portName in InfraPort %}
+{% if interface.portName is not in PortChannelMembers %}
+interface {{ interface.portName }}
+device-tracking attach-policy disable_ipdt
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+
+
+=====================================Dot1x Interface OpenMode===============================================
+
+!! Dot1x Interface OpenMode Template !!
+
+!! {{ InfraPort }} {{ PortChannelMembers }} {{ NoDot1xPort }} 
+{% for interface in  __interface  %}
+
+{% if interface.interfaceType == 'Physical' or 'Port-channel' in interface.portName %}
+{% if interface.portMode == 'access' or interface.portMode == 'dynamic_auto' %}
+
+{%if interface.portName is in NoDot1xPort%}
+interface {{ interface.portName }}
+no service-policy type control subscriber DOT1X-DEFAULT
+no authentication periodic
+no authentication timer reauthenticate server
+no mab
+no access-session host-mode multi-auth
+no dot1x pae authenticator
+no dot1x timeout tx-period 10
+no access-session port-control auto
+no device-tracking attach-policy ipdt_max_10
+
+
+no access-session control-direction in
+no access-session closed
+
+
+{% elif interface.portName is not in NoDot1xPort %}
+interface {{ interface.portName }}
+service-policy type control subscriber DOT1X-DEFAULT
+authentication periodic
+authentication timer reauthenticate server
+mab
+access-session host-mode multi-auth
+dot1x pae authenticator
+dot1x timeout tx-period 10
+access-session port-control auto
+device-tracking attach-policy ipdt_max_10
+
+
+no access-session control-direction in
+no access-session closed
+{% endif %}
+
+
+{% elif interface.portMode  == 'trunk' and interface.portName in InfraPort %}
+{% if interface.portName is not in PortChannelMembers %}
+interface {{ interface.portName }}
+device-tracking attach-policy disable_ipdt
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+
